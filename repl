@@ -1,0 +1,3 @@
+#!/bin/bash
+
+ledit -u | scm -l warpper.scm -e "(repl)" | sed -e "s/#(/[/g" -u

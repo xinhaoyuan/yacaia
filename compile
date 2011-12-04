@@ -1,0 +1,4 @@
+#!/bin/sh
+
+scm -l $(dirname $(realpath $0))/warpper.scm -e "(compile-file\"${1}\" \"${1%.scm}.vm\")"
+sed -e "s/#(/[/g" ${1%.scm}.vm -i
