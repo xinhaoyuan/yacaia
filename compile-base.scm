@@ -32,7 +32,7 @@
   symbol)
 
 (define (compile-constant exp)
-  (list ysc-quote exp))
+  (cons ysc-quote exp))
 
 (define (compile-vm-binding binding)
   (list ysc-get binding))

@@ -343,8 +343,8 @@
          (context
           (lambda (mx-mode? envir)
             (if mx-mode?
-                (compile-constant (purge context exp))
-                (compile-constant exp)))
+                (compile-constant (list (purge context exp)))
+                (compile-constant (list exp))))
           ))
 
         (else
