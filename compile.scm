@@ -424,15 +424,4 @@
 
     ))
 
-(add-macro! system-envir
-
-            ysc-apply-proc
-
-            '(proc args)
-
-            '(proc args ...)
-            (list ysc-apply 'proc '(@expand args) '())
-
-            )
-
 ;; compile.scm ends here.

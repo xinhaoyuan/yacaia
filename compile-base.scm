@@ -64,4 +64,15 @@
 (define (compile-variable variable)
   (list ysc-get (car variable) (cdr variable)))
 
+(add-macro! system-envir
+
+            ysc-apply-proc
+
+            '(proc args)
+
+            '(proc args ...)
+            (list ysc-apply 'proc '(@expand args) '())
+
+            )
+
 ;; compile-base.scm ends here.
