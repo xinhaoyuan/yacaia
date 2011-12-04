@@ -1,5 +1,29 @@
 ;; compile-base.scm
 
+;; primitive token for compiler
+(define ysc-begin        '@begin)
+(define ysc-if           '@if)
+(define ysc-lambda       '@lambda)
+(define ysc-get          '@get)
+(define ysc-set!         '@set!)
+(define ysc-apply        '@apply)
+(define ysc-apply-cc     '@apply-cc)
+(define ysc-inline-apply '@inline-apply)
+(define ysc-with-macro   '@with-macro)
+(define ysc-quote        'quote)
+
+(define ysc-lambda-cps       '@lambda-cps)
+(define ysc-get-cps          '@get-cps)
+(define ysc-set-cps          '@set@)
+(define ysc-inline-apply-cps '@inline-apply@)
+
+;; it is not a primitive token
+(define ysc-apply-proc 'apply-proc)
+
+;; to implement or not?
+(define ysc-load       '@load)
+
+
 (define (make-code-block . code)
   (if (eq? code '()) (deque)
       (apply deque code)))

@@ -1,20 +1,5 @@
 ;; compile.scm
 
-;; primitive token for compiler
-(define ysc-begin        '@begin)
-(define ysc-if           '@if)
-(define ysc-lambda       '@lambda)
-(define ysc-get          '@get)
-(define ysc-set!         '@set!)
-(define ysc-apply        '@apply)
-(define ysc-apply-cc     '@apply-cc)
-(define ysc-inline-apply '@inline-apply)
-(define ysc-with-macro   '@with-macro)
-(define ysc-quote        'quote)
-
-;; to implement or not?
-(define ysc-load       '@load)
-
 (define system-macro-head?
   (make-fixed-set
    (list ysc-begin
@@ -150,7 +135,8 @@
                                   #t
                                   level-size
                                   ysc-begin
-                                  codes-list))
+                                  codes-list
+                                  ))
 
            ))
         ))
@@ -361,7 +347,8 @@
                
                ((symbol? head)            ; system macro
                 (compile-system-macro log context tail?
-                                      level-size head (cdr exp)))
+                                      level-size head (cdr exp)
+                                      ))
                
                ((or (not (pair? head))
                     (eq? (car head) 'variable))
@@ -417,7 +404,7 @@
   (lambda (exp)
 
     (call-with-current-continuation
-     (lambda (cont)
+     (lambda (return)
        
        (compile-eval (lambda (op . args)
                        
@@ -427,7 +414,7 @@
                          (display (car args))
                          (newline)
                          
-                         (cont '())))
+                         (return '())))
                        )
                      (make-context #f system-envir)
                      #t
@@ -439,7 +426,7 @@
 
 (add-macro! system-envir
 
-            'apply-proc
+            ysc-apply-proc
 
             '(proc args)
 

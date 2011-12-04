@@ -14,6 +14,7 @@
 (load "inline.scm")
 (load "compile-base.scm")
 (load "compile.scm")
+(load "cps.scm")
 
 (define (get-input)
 
@@ -27,7 +28,7 @@
     (let recur ((input-data (get-input)))
       (if (not (eof-object? input-data))
 	  (let ((output-data
-		 (compile-with-system-envir
+		 (cps-with-system-envir
 		  input-data)))
 	    (display "** Compiling --- ") (display input-data) (newline)
 	    (display "** Result ------ ") 
@@ -59,5 +60,7 @@
 (define (compile file-name)
   (compile-file file-name (string-append file-name ".vm"))
   )
+
+(repl)
 
 ;; ysc.scm ends here.
