@@ -1,5 +1,17 @@
 ;; cps.scm
 
+(define system-macro-head?
+  (make-fixed-set
+   (list ysc-begin
+         ysc-if
+         ysc-lambda
+         ysc-set!
+         ysc-apply
+         ysc-apply-cc
+         ysc-inline-apply
+         ysc-with-macro
+         ysc-quote)))
+
 (define cps-system-macro
   (lambda (log
            context
@@ -352,8 +364,6 @@
     (call-with-context
      (lambda (context exp)
 
-       (display  (purge-exp context exp)) (newline)
-       
        (cond
 
         ((symbol? exp)
