@@ -27,13 +27,12 @@
   (lambda ()
     (let recur ((input-data (get-input)))
       (if (not (eof-object? input-data))
-	  (let ((output-data
-		 (cps-with-system-envir
-		  input-data)))
+	  (let ((output-data (compile
+                          (cps-with-system-envir
+                           input-data))))
 	    (display "** Compiling --- ") (display input-data) (newline)
-	    (display "** Result ------ ") 
-	    (display output-data) (newline)
-        (display (compile output-data)) (newline)
+	    (display "** Result ------ ") (newline)
+        (display output-data) (newline)
 	    ;; (display "   Executing ... ") (newline)
 	    ;; (test-vm output-data)
 	    (recur (get-input))))

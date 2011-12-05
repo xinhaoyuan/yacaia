@@ -59,7 +59,7 @@
                                    (if (symbol? variable)
                                        variable
                                        (make-variable-access cur-level (cdr variable)))
-                                   (list ysc-get 0 0))))
+                                   (list ysc-get (cons 0 0)))))
                      level value)))
        exp))
 
