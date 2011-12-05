@@ -7,8 +7,9 @@
 (define ysc-get          '@get)
 (define ysc-set!         '@set!)
 (define ysc-apply        '@apply)
+(define ysc-apply-tl     '@apply-tl)
+(define ysc-inline-apply '@apply-inline)
 (define ysc-apply-cc     '@apply-cc)
-(define ysc-inline-apply '@inline-apply)
 (define ysc-with-macro   '@with-macro)
 (define ysc-quote        'quote)
 
@@ -68,7 +69,7 @@
             '(proc args)
 
             '(proc args ...)
-            (list ysc-apply 'proc '(@expand args) '())
+            (list ysc-apply 'proc '(@expand args))
 
             )
 

@@ -16,7 +16,7 @@
 
         (add-macro! system-envir (car symbols) '(exp)
                     '(exp ...)
-                    (list '@inline-apply current (list '@expand 'exp))
+                    (list ysc-inline-apply current (list '@expand 'exp))
                     )      
         (recur (cdr symbols) (+ current 1))
 

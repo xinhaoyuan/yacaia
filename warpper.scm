@@ -10,9 +10,9 @@
 (load "rule-compile.scm")
 (load "hygienic-rule.scm")
 (load "system-rules.scm")
+(load "base.scm")
 (load "base-macros.scm")
 (load "inline.scm")
-(load "base.scm")
 (load "cps.scm")
 (load "compile.scm")
 
@@ -27,15 +27,17 @@
   (lambda ()
     (let recur ((input-data (get-input)))
       (if (not (eof-object? input-data))
-	  (let ((output-data (compile
-                          (cps-with-system-envir
-                           input-data))))
-	    (display "** Compiling --- ") (display input-data) (newline)
-	    (display "** Result ------ ") (newline)
-        (display output-data) (newline)
-	    ;; (display "   Executing ... ") (newline)
-	    ;; (test-vm output-data)
-	    (recur (get-input))))
+          (let* ((cps-data (cps-with-system-envir
+                            input-data))
+                 (output-data (compile cps-data)))
+            
+            (display "** Compiling --- ") (display input-data) (newline)
+            (display "** CPS --------- ") (display cps-data) (newline)
+            (display "** Result ------ ") (newline)
+            (display output-data) (newline)
+            ;; (display "   Executing ... ") (newline)
+            ;; (test-vm output-data)
+            (recur (get-input))))
       )
     ))
 

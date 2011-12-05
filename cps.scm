@@ -7,8 +7,9 @@
          ysc-lambda
          ysc-set!
          ysc-apply
-         ysc-apply-cc
          ysc-inline-apply
+         ysc-apply-tl
+         ysc-apply-cc
          ysc-with-macro
          ysc-quote)))
 
@@ -160,7 +161,9 @@
                  (cont level)))
          ) exp))
 
-     ((eq? head-symbol ysc-apply)
+     ((or (eq? head-symbol ysc-apply)
+          (eq? head-symbol ysc-apply-tl)
+          (eq? head-symbol ysc-inline-apply))
       (if (not (pair? exp))
           (log 'complain-error "Cannot apply since incorrect format")
           (let ((args-level-list '()))
@@ -175,9 +178,10 @@
                                                         (cons (list ysc-get (cons (- cur-level (car level-list)) 0))
                                                               result))
                                              (list ysc-lambda 1
-                                                   (cons ysc-apply (cons (car result)
-                                                                         (cons (cont cur-level)
-                                                                               (cdr result)))))))
+                                                   (cons head-symbol
+                                                         (cons (car result)
+                                                               (cons (cont cur-level)
+                                                                     (cdr result)))))))
                                        ))
                              (current (reverse exp)))
               
@@ -217,56 +221,13 @@
                                           (list ysc-apply
                                                 (list ysc-get 1 0) (list ysc-get 0 0) (list ysc-get 0 0)))
                                     (cont cur-level)
-                                    (list 'quote '())))
+                                    ))
                         )
                       level (car exp))
 
           (log 'complain-error
                "Syntax error with @apply-cc")
           )
-      )
-
-     ((eq? head-symbol ysc-inline-apply)
-      (if (not (pair? exp))
-          (log 'complain-error "Cannot apply since incorrect format")
-          (let ((args-level-list '()))
-            (let scan-recur ((result (lambda (cur-level)
-                                       (set! cur-level (+ 1 cur-level))
-                                       (set! args-level-list (cons cur-level args-level-list))
-                                       (let gen-recur
-                                           ((level-list args-level-list)
-                                            (result '()))
-                                         (if (pair? level-list)
-                                             (gen-recur (cdr level-list)
-                                                        (cons (list ysc-get (cons (- cur-level (car level-list)) 0))
-                                                              result))
-                                             (list ysc-lambda 1
-                                                   (cons ysc-inline-apply (cons (car result)
-                                                                                (cons (cont cur-level)
-                                                                                      (cdr result)))))))
-                                       ))
-                             (current (reverse exp)))
-              
-              (if (eq? (cdr current) '())
-                  ;; tail expression
-                  (cps-eval log context
-                            result
-                            level (car current))
-                  (scan-recur
-                   (let ((cont result)
-                         (exp (car current)))
-                     (lambda (cur-level)
-                       (set! cur-level (+ 1 cur-level))
-                       (set! args-level-list (cons cur-level args-level-list))
-                       (list ysc-lambda 1
-                             (cps-eval log context
-                                       cont
-                                       cur-level
-                                       exp))))
-                   (cdr current)
-                   ))
-              )
-            ))
       )
 
      ((eq? head-symbol ysc-with-macro)

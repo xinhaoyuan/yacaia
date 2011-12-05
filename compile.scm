@@ -2,10 +2,13 @@
 
 (define compile-head-string
   "\
+#include \"headers.h\"
+
 void entry(__context_t context){
 switch (context->closure_id) {
 ")
 (define compile-tail-string "\
+default: break;
 }
 }
 ")
@@ -77,29 +80,22 @@ switch (context->closure_id) {
 
                               ) (cdr exp)))
 
-                    ((eq? (car exp) ysc-apply)
+                    ((or (eq? (car exp) ysc-apply)
+                         (eq? (car exp) ysc-apply-tl)
+                         (eq? (car exp) ysc-inline-apply))
                      (let ((writer (make-plist-writer)))
                        (writer 'push-level!)
-                       (writer 'write! "apply(context")
+
+                       (cond
+                        ((eq? (car exp) ysc-apply)
+                         (writer 'write! "apply(context"))
+                        ((eq? (car exp) ysc-apply-tl)
+                         (writer 'write! "apply_tl(context"))
+                        ((eq? (car exp) ysc-inline-apply)
+                         (writer 'write! "apply_inline(context")))
 
                        (let inner-recur ((cur (cdr exp)))
 
-                         (if (pair? cur)
-                             (begin
-                               (writer 'write! ",")
-                               (writer 'write! (recur (car cur)))
-                               (inner-recur (cdr cur)))))
-                       (writer 'write! ")")
-                       (car (writer 'finish!))
-                       ))
-
-                    ((eq? (car exp) ysc-inline-apply)
-                     (let ((writer (make-plist-writer)))
-                       (writer 'push-level!)
-                       (writer 'write! "inline_apply(context")
-                       
-                       (let inner-recur ((cur (cdr exp)))
-                         
                          (if (pair? cur)
                              (begin
                                (writer 'write! ",")

@@ -1,3 +1,4 @@
+
 ;; base-macros.scm
 ;;
 ;; define several basic macros
@@ -9,7 +10,7 @@
             '(etc)
             
             '(etc ...)
-            '(@apply (@expand etc))
+            '(@apply-tl (@expand etc))
             )
 
 (add-macro! system-envir
