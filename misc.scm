@@ -19,6 +19,25 @@
           )))
   )
 
+(define (encode-to-legacy-token string)
+  (let ((length (string-length string)))
+    (let recur ((current 0)
+                (result '()))
+
+      (if (< current length)
+          (let ((char (string-ref string current)))
+            
+            (if (or (char-alphabetic? char)
+                    (char-numeric? char))
+                (recur (+ current 1)
+                       (cons char result))
+                (recur (+ current 1)
+                       (cons #\_ result))
+                ))
+          (list->string (reverse result))
+          )))
+  )
+
 (define make-fixed-set
   (lambda (elements)
 

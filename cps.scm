@@ -25,7 +25,7 @@
     (cond
 
      ((eq? head-symbol ysc-quote)
-      (list ysc-apply (cont level) (list ysc-quote (purge-exp context exp)))
+      (list ysc-apply (cont level) (list ysc-quote (purge-exp context (car exp))))
       )
 
      ((eq? head-symbol ysc-get)
@@ -219,7 +219,7 @@
                               (list ysc-apply
                                     (list ysc-lambda 1
                                           (list ysc-apply
-                                                (list ysc-get 1 0) (list ysc-get 0 0) (list ysc-get 0 0)))
+                                                (list ysc-get (cons 1 0)) (list ysc-get (cons 0 0)) (list ysc-get (cons 0 0))))
                                     (cont cur-level)
                                     ))
                         )
@@ -325,13 +325,15 @@
     (call-with-context
      (lambda (context exp)
 
+       ;; (display "CPS-EVAL: ") (display (purge-exp context exp)) (newline)
+       
        (cond
 
         ((symbol? exp)
          (cps-system-macro log context cont level-size ysc-get exp))
         
         ((not (pair? exp))
-         (cps-system-macro log context cont level-size ysc-quote exp))
+         (cps-system-macro log context cont level-size ysc-quote (list exp)))
 
         (else
 
