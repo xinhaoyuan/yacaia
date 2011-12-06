@@ -42,6 +42,7 @@
   (cond
    ((symbol? object) (symbol->string object))
    ((number? object) (number->string object))
+   ((char? object)   (number->string (char->integer object)))
    ((boolean? object) (if object "#t" "#f"))
    ((vector? object)
     (string-append "#( "

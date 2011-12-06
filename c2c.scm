@@ -1,4 +1,6 @@
 ;; c2c.scm
+;;
+;; convert CPS into C snippets
 
 (define c2c-head-string
   "\
@@ -73,22 +75,20 @@
                             
                             (cdr exp)))
 
-                    ((eq? (car exp) ysc-set-cps)
-                     (apply (lambda (cont ref value)
+                    ((eq? (car exp) ysc-set!)
+                     (apply (lambda (ref value)
 
-                              (set! cont (recur cont))
                               (set! value (recur value))
                               
                               (if (pair? ref)
-                                  (list "set_local(context," cont "," (car ref) "," (cdr ref) "," value ")")
-                                  (list "set_global(context," cont "," (quote-string (symbol->string ref)) "," value ")")
+                                  (list "set_local(context," (car ref) "," (cdr ref) "," value ")")
+                                  (list "set_global(context," (quote-string (symbol->string ref)) "," value ")")
                                   )
 
                               ) (cdr exp)))
 
                     ((or (eq? (car exp) ysc-apply)
-                         (eq? (car exp) ysc-apply-tl)
-                         (eq? (car exp) ysc-inline-apply))
+                         (eq? (car exp) ysc-apply-tl))
                      (let ((writer (make-plist-writer)))
                        (writer 'push-level!)
 
@@ -96,9 +96,7 @@
                         ((eq? (car exp) ysc-apply)
                          (writer 'write! "apply(context"))
                         ((eq? (car exp) ysc-apply-tl)
-                         (writer 'write! "apply_tl(context"))
-                        ((eq? (car exp) ysc-inline-apply)
-                         (writer 'write! "apply_inline(context")))
+                         (writer 'write! "apply_tl(context")))
 
                        (let inner-recur ((cur (cdr exp)))
 
@@ -111,6 +109,23 @@
                        (car (writer 'finish!))
                        ))
 
+                    ((eq? (car exp) ysc-inline-apply)
+                     (apply (lambda (inline-no . args)
+                              (let ((writer (make-plist-writer)))
+                                (writer 'push-level!)
+                                (writer 'write! "__INLINE_" (car (cdr inline-no)) "(context")
+
+                                (let inner-recur ((cur args))
+
+                                  (if (pair? cur)
+                                      (begin
+                                        (writer 'write! ",")
+                                        (writer 'write! (recur (car cur)))
+                                        (inner-recur (cdr cur)))))
+                                (writer 'write! ")")
+                                (car (writer 'finish!))
+                                )) (cdr exp)))
+
                     ((eq? (car exp) ysc-if)
                      (apply (lambda (if-cond if-true if-false)
 
@@ -119,7 +134,22 @@
 
                               ) (cdr exp)))
 
-                    ((eq? (car exp) 'exit) "__EXIT")
+                    ((eq? (car exp) ysc-begin)
+                     (let inner-recur ((cur (cdr exp))
+                                       (result '()))
+                       (if (pair? cur)
+                           (inner-recur (cdr cur)
+                                        (cons (recur (car cur))
+                                              (if (eq? result '())
+                                                  '()
+                                                  (cons ";" result))
+                                              ))
+                           (reverse result)))
+                     )
+
+
+                    ((eq? (car exp) 'exit) (list "__EXIT(context," (recur (car (cdr exp))) ")"))
+                    ((eq? (car exp) 'exit-proc) "__EXIT_PROC")
 
                     ((eq? (car exp) ysc-get)
                      (apply (lambda (ref)
@@ -169,7 +199,10 @@
                                 (list "constant_" (car (car (vector-ref lambda-constant-vec offset)))))
                               ) (cdr exp)))
                     
-                    (else exp)
+                    (else
+                     (begin
+                       (display "!!!!") (display exp) (newline)
+                       exp))
                     )
                    ))
 

@@ -13,8 +13,6 @@
 (define ysc-with-macro   '@with-macro)
 (define ysc-quote        'quote)
 
-(define ysc-set-cps          '@set@)
-
 ;; it is not a primitive token
 (define ysc-apply-proc 'apply-proc)
 

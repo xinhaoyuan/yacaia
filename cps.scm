@@ -16,8 +16,9 @@
 (define cps-system-macro
   (lambda (log
            context
-           cont
-           level                        ; level of binding
+           cont                         ; (cont cur-level) return the continuation exp under cur-level
+           cont-level                   ; level of binding if use cont
+           ret-cont                     ; (ret-cont cont)
            head-symbol
            exp                          ; without context
            )
@@ -25,7 +26,8 @@
     (cond
 
      ((eq? head-symbol ysc-quote)
-      (list ysc-apply (cont level) (list ysc-quote (purge-exp context (car exp))))
+      ((ret-cont (lambda (level)
+                   (list ysc-quote (purge-exp context (car exp))))) cont-level)
       )
 
      ((eq? head-symbol ysc-get)
@@ -36,10 +38,10 @@
               context exp)
              ))
 
-        (list ysc-apply (cont level)
-              (list ysc-get (if result
-                                (make-variable-access level (cdr result))
-                                exp)))
+        ((ret-cont (lambda (level)
+                     (list ysc-get (if result
+                                       (make-variable-access level (cdr result))
+                                       exp)))) cont-level)
         ))
 
      ((eq? head-symbol ysc-set!)
@@ -52,39 +54,69 @@
                    (or (context-lookup-variable context name)
                        name))
                  context variable)))
-
+           
            (cps-eval log context
-                     (lambda (cur-level)
-                       (list ysc-lambda 1
-                             (list ysc-set-cps (cont (+ 1 cur-level))
-                                   (if (symbol? variable)
-                                       variable
-                                       (make-variable-access cur-level (cdr variable)))
-                                   (list ysc-get (cons 0 0)))))
-                     level value)))
+
+                     (ret-cont (lambda (level)
+                                 (list ysc-set!
+                                     (if (symbol? variable)
+                                             variable
+                                             (make-variable-access level (cdr variable)))
+                                     (list ysc-get (cons level 0))
+                                     )))
+                     cont-level
+
+                     (lambda (cont)
+                       (ret-cont (lambda (level)
+                                   (list ysc-set!
+                                         (if (symbol? variable)
+                                             variable
+                                             (make-variable-access level (cdr variable)))
+                                         (cont level)
+                                     ))))
+                     
+                     value
+                     )))
        exp))
 
      ((eq? head-symbol ysc-begin)
       (if (eq? exp '())
           (log 'complain-error "the Begin expression cannot be empty")
-      	  (let eval-recur ((result cont)
-                           (current (reverse exp)))
+          ;; pass the check
+      	  (let eval-recur ((current-cont cont)
+                           (current-ret-cont ret-cont)
+                           (current-exp (reverse exp)))
             
-            (if (eq? (cdr current) '())
+            (if (eq? (cdr current-exp) '())
                 ;; tail expression
                 (cps-eval log context
-                          result
-                          level (car current))
+                          current-cont
+                          cont-level
+                          current-ret-cont
+                          (car current-exp))
+                
                 (eval-recur
-                 (let ((cont result)
-                       (exp (car current)))
-                   (lambda (cur-level)
-                     (list ysc-lambda 1
-                           (cps-eval log context
-                                     cont
-                                     (+ cur-level 1)
-                                     exp))))
-                 (cdr current)
+                 (lambda (level)
+                   (list ysc-lambda 1
+                         (cps-eval log context
+                                   current-cont
+                                   (+ 1 level)
+                                   current-ret-cont
+                                   (car current-exp))))
+                 (lambda (cont)
+                   (lambda (level)
+                     (let ((result
+                            (cps-eval log context
+                                     current-cont
+                                     level
+                                     current-ret-cont
+                                     (car current-exp))))
+                       (if (eq? (car result) ysc-begin)
+                           (cons ysc-begin (cons (cont level) (cdr result)))
+                           (list ysc-begin (cont level) result))
+                           
+                       )))
+                 (cdr current-exp)
                  ))
             )))
 
@@ -120,110 +152,197 @@
                      (if (not (eq? current '()))
                          (log 'complain-error "There are non-symbol in arglist")))
                  ))
-           
-           (list ysc-apply (cont level)
-                 (list ysc-lambda
-                       ;; one for continuation
-                       (+ 1 args-count)
-                       (cps-system-macro
-                        log
-                        (make-context
-                         mx-mode?
-                         (envir 'push-variable-level
-                                (+ 1 level)
-                                ;; first variable is the cont
-                                (cons '() args-list)))
-                        ;; get the continuation from arg 0
-                        (let ((old (+ 1 level)))
-                          (lambda (new)
-                            (list ysc-get (cons (- new old) 0))))
-                        (+ level 1)
-                        ysc-begin
-                        codes-list
-                        )))
-           ))
-        ))
+
+           ;; pass the check
+           ((ret-cont
+             (lambda (level)
+               (list ysc-lambda
+                     ;; one for continuation
+                     (+ 1 args-count)
+                     
+                     (cps-system-macro
+                      log
+                      (make-context
+                       mx-mode?
+                       (envir 'push-variable-level
+                              (+ 1 level)
+                              ;; first variable is the cont
+                              (cons '() args-list)))
+                      ;; get the continuation from arg 0
+                      (let ((old (+ 1 level)))
+                        (lambda (level)
+                          (list ysc-get (cons (- level old) 0))))
+                  
+                      (+ 1 level)
+
+                      (let ((old (+ 1 level)))
+                        (lambda (ncont)
+                          (lambda (level)
+                            (list ysc-apply
+                                  (list ysc-get (cons (- level old) 0))
+                                  (ncont level)))))
+                      
+                      ysc-begin
+                      codes-list
+                      ))
+               )) cont-level)
+        ))))
 
      ((eq? head-symbol ysc-if)
       (apply
        (lambda (condition if-true if-false)
-         
-         (letrec ((inner-cont (lambda (cur-level)
-                                (list ysc-get (cons (- cur-level (+ 1 level)) 0))))
-                  (cond-cont (lambda (cur-level)
-                               (list ysc-lambda 1
-                                     (list ysc-if (list ysc-get (cons 0 0))
-                                           (cps-eval log context inner-cont (+ 1 cur-level) if-true)
-                                           (cps-eval log context inner-cont (+ 1 cur-level) if-false))))))
+         (set! cont-level (+ 1 cont-level))
+         (letrec ((inner-cont (lambda (level)
+                                (list ysc-get (cons (- level cont-level) 0))))
+                  (inner-ret-cont
+                   (lambda (cont)
+                     (lambda (level)
+                       (list ysc-apply
+                             (list ysc-get (cons (- level cont-level) 0))
+                             (cont level)))))
+                                    
+                  (cond-cont
+                   (lambda (level)
+                     (list ysc-lambda 1
+                           (list ysc-if (list ysc-get (cons 0 0))
+                                 (cps-eval log context inner-cont (+ 1 level) inner-ret-cont if-true)
+                                 (cps-eval log context inner-cont (+ 1 level) inner-ret-cont if-false)))))
+                  
+                  (cond-ret-cont
+                   (lambda (cont)
+                     (lambda (level)
+                       (list ysc-if (cont level)
+                             (cps-eval log context inner-cont level inner-ret-cont if-true)
+                             (cps-eval log context inner-cont level inner-ret-cont if-false)))))
+                  )
            (list ysc-apply
                  (list ysc-lambda 1
-                       (cps-eval log context cond-cont (+ 1 level) condition))
-                 (cont level)))
+                       (cps-eval log context cond-cont cont-level cond-ret-cont condition))
+                 (cont (- cont-level 1))))
          ) exp))
 
      ((or (eq? head-symbol ysc-apply)
           (eq? head-symbol ysc-apply-tl)
-          (eq? head-symbol ysc-inline-apply))
+          (eq? head-symbol ysc-inline-apply)
+          )
       (if (not (pair? exp))
           (log 'complain-error "Cannot apply since incorrect format")
-          (let ((args-level-list '()))
-            (let scan-recur ((result (lambda (cur-level)
-                                       (set! cur-level (+ 1 cur-level))
-                                       (set! args-level-list (cons cur-level args-level-list))
-                                       (let gen-recur
-                                           ((level-list args-level-list)
-                                            (result '()))
-                                         (if (pair? level-list)
-                                             (gen-recur (cdr level-list)
-                                                        (cons (list ysc-get (cons (- cur-level (car level-list)) 0))
-                                                              result))
-                                             (list ysc-lambda 1
-                                                   (cons head-symbol
-                                                         (cons (car result)
-                                                               (cons (cont cur-level)
-                                                                     (cdr result)))))))
-                                       ))
+          (letrec ((args-list '())
+                   (args-size 0)
+                   (apply-line (list head-symbol))
+                   (gen-apply-line
+                    (lambda (level)
+                      (let gen-recur
+                          ((args args-list)
+                           (result '()))
+                        (if (pair? args)
+                            (gen-recur (cdr args)
+                                       (if (number? (car args))
+                                           (cons (list ysc-get (cons (- level (car args)) 0))
+                                                 result)
+                                           (cons (car args) result)))
+                            (cons head-symbol
+                                  (cons (car result)
+                                        (cons (cont level)
+                                              (cdr result))))))))
+                   (gen-inline-apply-line
+                    (lambda (level)
+                      (let gen-recur
+                          ((args args-list)
+                           (result '()))
+                        (if (pair? args)
+                            (gen-recur (cdr args)
+                                       (if (number? (car args))
+                                           (cons (list ysc-get (cons (- level (car args)) 0))
+                                                 result)
+                                           (cons (car args) result)))
+                            (cons ysc-inline-apply
+                                  (cons (car result)
+                                        (cdr result)))))))
+                   )
+            (let scan-recur ((current-cont
+                              (lambda (level)
+                                (set! args-size (+ 1 args-size))
+                                (set! args-list (cons (+ 1 level) args-list))
+                                (list ysc-lambda 1
+                                      (if (eq? head-symbol ysc-inline-apply)
+                                          ((ret-cont gen-inline-apply-line) (+ 1 level))
+                                          (gen-apply-line (+ 1 level))))
+                                ))
+                             (current-ret-cont
+                              (lambda (cont)
+                                (lambda (level)
+                                  (set! args-size (+ 1 args-size))
+                                  (set! args-list (cons (cont level) args-list))
+                                  (if (eq? head-symbol ysc-inline-apply)
+                                      ((ret-cont gen-inline-apply-line) level)
+                                      (gen-apply-line level))
+                                  )
+                                ))
                              (current (reverse exp)))
               
               (if (eq? (cdr current) '())
                   ;; tail expression
                   (cps-eval log context
-                            result
-                            level (car current))
+                            current-cont
+                            cont-level
+                            current-ret-cont
+                            (car current))
                   (scan-recur
-                   (let ((cont result)
-                         (exp (car current)))
-                     (lambda (cur-level)
-                       (set! cur-level (+ 1 cur-level))
-                       (set! args-level-list (cons cur-level args-level-list))
-                       (list ysc-lambda 1
-                             (cps-eval log context
-                                       cont
-                                       cur-level
-                                       exp))))
-                     (cdr current)
-                     ))
+
+                   (lambda (level)
+                     (set! args-size (+ 1 args-size))
+                     (set! args-list (cons (+ 1 level) args-list))
+                     (list ysc-lambda 1
+                           (cps-eval log context
+                                     current-cont
+                                     (+ 1 level)
+                                     current-ret-cont
+                                     (car current)
+                                     )))
+
+                   (lambda (cont)
+                     (lambda (level)
+                       (set! args-size (+ 1 args-size))
+                       (set! args-list (cons (cont level) args-list))
+                       (cps-eval log context
+                                 current-cont
+                                 level
+                                 current-ret-cont
+                                 (car current)
+                                 )))
+                   
+                   (cdr current)
+                   )
                   )
-              ))
-            )
+              )
+              )))
 
      ((eq? head-symbol ysc-apply-cc)
       (if (and (pair? exp)
                (eq? (cdr exp) '())
                )
 
-            (cps-eval log context
-                      (lambda (cur-level)
-                        (set! cur-level (+ 1 cur-level))
-                        (list ysc-lambda 1
-                              (list ysc-apply
-                                    (list ysc-lambda 1
-                                          (list ysc-apply
-                                                (list ysc-get (cons 1 0)) (list ysc-get (cons 0 0)) (list ysc-get (cons 0 0))))
-                                    (cont cur-level)
-                                    ))
-                        )
-                      level (car exp))
+          (cps-eval log context
+                    (lambda (level)
+                      (set! level (+ 1 level))
+                      (list ysc-lambda 1
+                            (list ysc-apply
+                                  (list ysc-lambda 1
+                                        (list ysc-apply
+                                              (list ysc-get (cons 1 0)) (list ysc-get (cons 0 0)) (list ysc-get (cons 0 0))))
+                                  (cont level)
+                                  ))
+                      )
+                    cont-level
+                    (lambda (ncont)
+                      (lambda (level)
+                        (list ysc-apply
+                              (list ysc-lambda 1
+                                    (list ysc-apply
+                                          (ncont (+ 1 level)) (list ysc-get (cons 0 0)) (list ysc-get (cons 0 0))))
+                              (cont level))))
+                    (car exp))
 
           (log 'complain-error
                "Syntax error with @apply-cc")
@@ -244,7 +363,8 @@
                 log
                 (make-context mx-mode? envir)
                 cont
-                level-size
+                cont-level
+                ret-cont
                 (car current))
 
                (begin
@@ -292,9 +412,10 @@
                   context (car current))
                  (recur (cdr current)))
                ))
-         )))
-     )
-    ))
+         ))
+      )
+            )
+          ))
 
 ;; find the first matchable macro and apply it
 (define apply-macro
@@ -320,7 +441,7 @@
     ))
 
 (define cps-eval
-  (lambda (log context cont level-size oexp)
+  (lambda (log context cont cont-level ret-cont oexp)
 
     (call-with-context
      (lambda (context exp)
@@ -330,10 +451,10 @@
        (cond
 
         ((symbol? exp)
-         (cps-system-macro log context cont level-size ysc-get exp))
+         (cps-system-macro log context cont cont-level ret-cont ysc-get exp))
         
         ((not (pair? exp))
-         (cps-system-macro log context cont level-size ysc-quote (list exp)))
+         (cps-system-macro log context cont cont-level ret-cont ysc-quote (list exp)))
 
         (else
 
@@ -348,8 +469,8 @@
               (cond
                
                ((symbol? head)            ; system macro
-                (cps-system-macro log context cont
-                                  level-size head (cdr exp)
+                (cps-system-macro log context cont cont-level ret-cont
+                                  head (cdr exp)
                                   ))
                
                ((or (not (pair? head))
@@ -365,8 +486,8 @@
                             (cps-eval log (context
                                            (lambda (mx-mode? envir)
                                              (make-context #t envir)))
-                                      cont
-                                      level-size result)
+                                      cont cont-level ret-cont
+                                      result)
                             (log 'complain-error
                                  "Cannot apply apply-proc macro!")
                             ))
@@ -383,8 +504,8 @@
                         (cps-eval log (context
                                        (lambda (mx-mode? envir)
                                          (make-context #t envir)))
-                                  cont
-                                  level-size result)
+                                  cont cont-level ret-cont
+                                  result)
                         )
                       (log 'complain-error "Cannot apply the macro"))))
                
@@ -414,9 +535,12 @@
                          (return '())))
                        )
                      (make-context #f system-envir)
-                     (lambda (new)
-                       (list 'exit))
+                     (lambda (level)
+                       (list 'exit-proc))
                      0
+                     (lambda (cont)
+                       (lambda (level)
+                         (list 'exit (cont level))))
                      exp)
        ))
 
