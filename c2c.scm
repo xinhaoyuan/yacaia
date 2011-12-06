@@ -1,21 +1,21 @@
-;; compile.scm
+;; c2c.scm
 
-(define compile-head-string
+(define c2c-head-string
   "\
 #include \"headers.h\"
 ")
-(define compile-tail-string "")
+(define c2c-tail-string "")
 
-(define (make-compile-context)
+(define (make-c2c-context)
   (cons 0 ""))
 
-(define cc-dump cdr)
-(define cc-dump-set! set-cdr!)
+(define c2c-context-dump cdr)
+(define c2c-context-dump-set! set-cdr!)
 
-(define cc-lambda-start car)
-(define cc-lambda-start-set! set-car!)
+(define c2c-context-lambda-start car)
+(define c2c-context-lambda-start-set! set-car!)
 
-(define (compile compile-context main-name cps-exp)
+(define (c2c c2c-context main-name cps-exp)
   (letrec ((scan (lambda (exp)
                    (if (pair? exp)
                        (let recur ((cur (cdr exp))
@@ -31,7 +31,7 @@
 
            (lambda-vec (make-vector (+ 1 (scan cps-exp))))
            (lambda-constant-vec (make-vector (vector-length lambda-vec) '()))
-           (lambda-start (cc-lambda-start compile-context))
+           (lambda-start (c2c-context-lambda-start c2c-context))
            (next-offset 1)
            (offset-stack (list 0))
 
@@ -173,9 +173,9 @@
                     )
                    ))
 
-    (cc-lambda-start-set! compile-context (+ next-offset lambda-start))
-    (cc-dump-set!
-     compile-context
+    (c2c-context-lambda-start-set! c2c-context (+ next-offset lambda-start))
+    (c2c-context-dump-set!
+     c2c-context
      (let after-recur ((count (vector-length lambda-vec))
                        (declare-result '())
                        (define-result '()))
@@ -206,7 +206,7 @@
            (serialize-to-string
             (cons (list declare-result define-result
                         "void " main-name "(__context_t context) { lambda_" lambda-start "(context); }"
-                        ) (cc-dump compile-context))))))
+                        ) (c2c-context-dump c2c-context))))))
     ))
 
-;; compile.scm ends here.
+;; c2c.scm ends here.

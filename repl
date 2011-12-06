@@ -1,3 +1,3 @@
 #!/bin/bash
 
-ledit -u | scm -l warpper.scm -e "(repl)"
+ledit -u | scm -l warpper.scm -e "(c2c-repl)"

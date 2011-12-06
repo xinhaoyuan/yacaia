@@ -14,7 +14,7 @@
 (load "base-macros.scm")
 (load "inline.scm")
 (load "cps.scm")
-(load "compile.scm")
+(load "c2c.scm")
 
 (define (get-input)
 
@@ -23,29 +23,29 @@
   
   )
 
-(define repl
+(define c2c-repl
   (lambda ()
     (let recur ((input-data (get-input))
-                (context (make-compile-context))
+                (context (make-c2c-context))
                 )
       (if (not (eof-object? input-data))
           (let* ((cps-data (cps-with-system-envir
                             input-data))
-                 (output-data (compile context cps-data)))
+                 (output-data (c2c context "eval" cps-data)))
             
             (display "** Compiling --- ") (display input-data) (newline)
             (display "** CPS --------- ") (display cps-data) (newline)
             (display "** Result ------ ") (newline)
-            (display (cc-dump context)) (newline)
+            (display (c2c-context-dump context)) (newline)
             ;; (display "   Executing ... ") (newline)
             ;; (test-vm output-data)
             (recur (get-input)
-                   (make-compile-context)
+                   (make-c2c-context)
                    )))
       )
     ))
 
-(define compile-file
+(define c2c-file
   (lambda (context
            input-file-name
            output-file-name)
@@ -58,22 +58,22 @@
 
         (if (eof-object? input-data)
             (begin
-              (compile context (encode-to-legacy-token input-file-name) (cps-with-system-envir (cons ysc-begin input)))
-              (display (string-append compile-head-string (cc-dump context) compile-tail-string) output-port))
+              (c2c context (encode-to-legacy-token input-file-name) (cps-with-system-envir (cons ysc-begin input)))
+              (display (string-append c2c-head-string (c2c-context-dump context) c2c-tail-string) output-port))
             (recur (read input-port) (cons input-data input))
             )))
     ))
 
-(define compile-files
+(define c2c-files
   (lambda (file-name-list)
-    (let recur ((context (make-compile-context))
+    (let recur ((context (make-c2c-context))
                 (cur file-name-list))
       (if (pair? cur)
           (begin
-            (compile-file context
-                          (car (car file-name-list))
-                          (cdr (car file-name-list)))
-            (cc-dump-set! context '())
+            (c2c-file context
+                      (car (car file-name-list))
+                      (cdr (car file-name-list)))
+            (c2c-context-dump-set! context '())
             (recur context
                    (cdr cur)))))))
 
