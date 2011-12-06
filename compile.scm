@@ -149,9 +149,7 @@
                                           (list "__BOOLEAN_" (if value "TRUE" "FALSE")))
 
                                          ((pair? value)
-                                          ;; TODO
-                                          ;; (list "__QUOTE(context," (write-to-string value) ")")
-                                          "__NULL"
+                                          (list "__QUOTE(context," (quote-string (write-to-string value)) ")")
                                           )
                                          
                                          ((eq? value '())

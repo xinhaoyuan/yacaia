@@ -38,6 +38,37 @@
           )))
   )
 
+(define (write-to-string object)
+  (cond
+   ((symbol? object) (symbol->string object))
+   ((number? object) (number->string object))
+   ((boolean? object) (if object "#t" "#f"))
+   ((vector? object)
+    (string-append "#( "
+                   (let recur ((count (vector-length object))
+                               (result ""))
+                     (if (> count 0)
+                         (recur (- count 1)
+                                (string-append (write-to-string (vector-ref object (- count 1))) " " result))
+                         result)
+                     )
+                   ")"))
+   
+   ((pair? object)
+    (string-append "("
+                   (let recur ((cur object)
+                               (result ""))
+                     (if (pair? cur)
+                         (recur (cdr cur)
+                                (string-append result " " (write-to-string (car cur))))
+                         (if (eq? cur '())
+                             result
+                             (string-append result " . " (write-to-string cur)))))
+                   " )"))
+   ((eq? object '()) "()")
+   )
+  )
+
 (define make-fixed-set
   (lambda (elements)
 
