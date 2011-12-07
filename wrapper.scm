@@ -31,13 +31,13 @@
       (if (not (eof-object? input-data))
           (let* ((cps-data (cps-with-system-envir
                             input-data))
-                 ;; (output-data (c2c context "eval" cps-data))
+                 (output-data (c2c context "eval" cps-data))
                  )
             
             (display "** Compiling --- ") (display input-data) (newline)
             (display "** CPS --------- ") (display cps-data) (newline)
-            ;; (display "** Result ------ ") (newline)
-            ;; (display (c2c-context-dump context)) (newline)
+            (display "** Result ------ ") (newline)
+            (display (c2c-context-dump context)) (newline)
             (recur (get-input)
                    (make-c2c-context)
                    )))
