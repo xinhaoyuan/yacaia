@@ -136,15 +136,15 @@
 
                     ((eq? (car exp) ysc-begin)
                      (let inner-recur ((cur (cdr exp))
-                                       (result '()))
+                                       (result (list "({")))
                        (if (pair? cur)
                            (inner-recur (cdr cur)
                                         (cons (recur (car cur))
-                                              (if (eq? result '())
-                                                  '()
+                                              (if (eq? (cdr result) '())
+                                                  result
                                                   (cons ";" result))
                                               ))
-                           (reverse result)))
+                           (reverse (cons ";})" result))))
                      )
 
 

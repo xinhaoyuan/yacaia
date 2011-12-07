@@ -57,13 +57,17 @@
            
            (cps-eval log context
 
-                     (ret-cont (lambda (level)
-                                 (list ysc-set!
-                                     (if (symbol? variable)
-                                             variable
-                                             (make-variable-access level (cdr variable)))
-                                     (list ysc-get (cons level 0))
-                                     )))
+                     (lambda (dlevel)
+                       (set! dlevel (+ 1 dlevel))
+                       (list ysc-lambda 1
+                             ((ret-cont (lambda (level)
+                                          (list ysc-set!
+                                                (if (symbol? variable)
+                                                    variable
+                                                    (make-variable-access level (cdr variable)))
+                                                (list ysc-get (cons (- level dlevel) 0)))))
+                              dlevel)
+                             ))
                      cont-level
 
                      (lambda (cont)
@@ -227,6 +231,8 @@
           )
       (if (not (pair? exp))
           (log 'complain-error "Cannot apply since incorrect format")
+
+          ;; pass the check
           (letrec ((args-list '())
                    (args-size 0)
                    (apply-line (list head-symbol))
@@ -260,13 +266,15 @@
                                   (cons (car result)
                                         (cdr result)))))))
                    )
+            
             (let scan-recur ((current-cont
                               (lambda (level)
+                                (set! level  (+ 1 level))
                                 (set! args-size (+ 1 args-size))
                                 (set! args-list (cons (+ 1 level) args-list))
                                 (list ysc-lambda 1
                                       (if (eq? head-symbol ysc-inline-apply)
-                                          ((ret-cont gen-inline-apply-line) (+ 1 level))
+                                          ((ret-cont gen-inline-apply-line) level)
                                           (gen-apply-line (+ 1 level))))
                                 ))
                              (current-ret-cont
