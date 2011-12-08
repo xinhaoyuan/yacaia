@@ -21,19 +21,19 @@
 (define (quote-exp value)
   (cond
    ((integer? value)
-    (list "__INTEGER(context," value ")"))
+    (list "INTEGER(context," value ")"))
    
    ((number? value)
-    (list "__NUMBER(context," value ")"))
+    (list "NUMBER(context," value ")"))
 
    ((string? value)
-    (list "__STRING(context," (quote-string value) ")"))
+    (list "STRING(context," (quote-string value) ")"))
 
    ((symbol? value)
-    (list "__SYMBOL(context," (quote-string (symbol->string value)) ")"))
+    (list "SYMBOL(context," (quote-string (symbol->string value)) ")"))
 
    ((boolean? value)
-    (list "__BOOLEAN_" (if value "TRUE" "FALSE")))
+    (list "BOOLEAN_" (if value "TRUE" "FALSE") "(context)"))
 
    ((pair? value)
     (let recur ((count 0)
@@ -45,7 +45,7 @@
                  (cdr cur)
                  (cons (quote-exp (car cur))
                        (cons "," result)))
-          (cons "__LCONS(context,"
+          (cons "LCONS(context,"
                 (cons count
                       (reverse
                        (cons ")" (cons (quote-exp cur) (cons "," result)))
@@ -56,7 +56,7 @@
     (let recur ((idx (vector-length value))
                 (result '(")")))
       (if (eq? idx 0)
-          (cons (list "__VECTOR(context," (vector-length value)) result)
+          (cons (list "VECTOR(context," (vector-length value)) result)
           (begin
             (set! idx (- idx 1))
             (recur idx
@@ -65,10 +65,10 @@
             ))))
 
    ((char? value)
-    (list "__INTEGER(context," (char->integer value) ")"))
+    (list "INTEGER(context," (char->integer value) ")"))
    
    ((eq? value '())
-    "__NULL")
+    "OBJECT_NULL")
 
    (else
     (begin (display "unknown exp to represent") (display value) (newline)))
@@ -127,7 +127,7 @@
                                 (set! next-offset (+ 1 next-offset))
                                 (vector-set! lambda-vec (- id lambda-start) (recur body))
                                 (set! offset-stack (cdr offset-stack))
-                                (list "create_closure(context,lambda_" id "," argc ")")
+                                (list "CLOSURE(context,lambda_" id "," argc ")")
                                 ))
                             
                             (cdr exp)))
@@ -138,8 +138,8 @@
                               (set! value (recur value))
                               
                               (if (pair? ref)
-                                  (list "set_local(context," (car ref) "," (cdr ref) "," value ")")
-                                  (list "set_global(context," (quote-string (symbol->string ref)) "," value ")")
+                                  (list "SET_LOCAL(context," (car ref) "," (cdr ref) "," value ")")
+                                  (list "SET_GLOBAL(context," (quote-string (symbol->string ref)) "," value ")")
                                   )
 
                               ) (cdr exp)))
@@ -151,9 +151,9 @@
 
                        (cond
                         ((eq? (car exp) ysc-apply)
-                         (writer 'write! "apply(context,"))
+                         (writer 'write! "APPLY(context,"))
                         ((eq? (car exp) ysc-apply-tl)
-                         (writer 'write! "apply_tl(context,")))
+                         (writer 'write! "APPLY_TL(context,")))
 
                        (writer 'write! (length (cdr exp)))
 
@@ -172,7 +172,7 @@
                      (apply (lambda (inline-no . args)
                               (let ((writer (make-plist-writer)))
                                 (writer 'push-level!)
-                                (writer 'write! "__INLINE_" (car (cdr inline-no)) "(context," (length args))
+                                (writer 'write! "INLINE_" (car (cdr inline-no)) "(context," (length args))
 
                                 (let inner-recur ((cur args))
 
@@ -207,15 +207,15 @@
                      )
 
 
-                    ((eq? (car exp) 'exit) (list "__EXIT(context," (recur (car (cdr exp))) ")"))
-                    ((eq? (car exp) 'exit-proc) "__EXIT_PROC")
+                    ((eq? (car exp) 'exit) (list "EXIT(context," (recur (car (cdr exp))) ")"))
+                    ((eq? (car exp) 'exit-proc) "EXIT_PROC")
 
                     ((eq? (car exp) ysc-get)
                      (apply (lambda (ref)
 
                               (if (pair? ref)
-                                  (list "get_local(context," (car ref) "," (cdr ref) ")")
-                                  (list "get_global(context," (quote-string (symbol->string ref)) ")"))
+                                  (list "GET_LOCAL(context," (car ref) "," (cdr ref) ")")
+                                  (list "GET_GLOBAL(context," (quote-string (symbol->string ref)) ")"))
                               
                               ) (cdr exp)))
 
@@ -232,11 +232,6 @@
                                                  (cons (cons 0 (quote-exp value)) l)))
                                 (list "constant_" (car (car (vector-ref lambda-constant-vec offset)))))
                               ) (cdr exp)))
-                    
-                    (else
-                     (begin
-                       (display "!!!!") (display exp) (newline)
-                       exp))
                     )
                    ))
 
