@@ -4,7 +4,8 @@
 
 (define c2c-head-string
   "\
-#include \"headers.h\"
+#include <config.h>
+#include <headers.h>
 ")
 (define c2c-tail-string "")
 
@@ -16,6 +17,62 @@
 
 (define c2c-context-lambda-start car)
 (define c2c-context-lambda-start-set! set-car!)
+
+(define (quote-exp value)
+  (cond
+   ((integer? value)
+    (list "__INTEGER(context," value ")"))
+   
+   ((number? value)
+    (list "__NUMBER(context," value ")"))
+
+   ((string? value)
+    (list "__STRING(context," (quote-string value) ")"))
+
+   ((symbol? value)
+    (list "__SYMBOL(context," (quote-string (symbol->string value)) ")"))
+
+   ((boolean? value)
+    (list "__BOOLEAN_" (if value "TRUE" "FALSE")))
+
+   ((pair? value)
+    (let recur ((count 0)
+                (cur value)
+                (result '())
+                )
+      (if (pair? cur)
+          (recur (+ 1 count)
+                 (cdr cur)
+                 (cons (quote-exp (car cur))
+                       (cons "," result)))
+          (cons "__LCONS(context,"
+                (cons count
+                      (reverse
+                       (cons ")" (cons (quote-exp cur) (cons "," result)))
+                       )))
+          )))
+
+   ((vector? value)
+    (let recur ((idx (vector-length value))
+                (result '(")")))
+      (if (eq? idx 0)
+          (cons (list "__VECTOR(context," (vector-length value)) result)
+          (begin
+            (set! idx (- idx 1))
+            (recur idx
+                   (cons ","
+                         (cons (quote-exp (vector-ref value idx)) result)))
+            ))))
+
+   ((char? value)
+    (list "__INTEGER(context," (char->integer value) ")"))
+   
+   ((eq? value '())
+    "__NULL")
+
+   (else
+    (begin (display "unknown exp to represent") (display value) (newline)))
+  ))
 
 (define (c2c c2c-context main-name cps-exp)
   (letrec ((scan (lambda (exp)
@@ -70,7 +127,7 @@
                                 (set! next-offset (+ 1 next-offset))
                                 (vector-set! lambda-vec (- id lambda-start) (recur body))
                                 (set! offset-stack (cdr offset-stack))
-                                (list "create_lambda(context,lambda_" id "," argc ")")
+                                (list "create_closure(context,lambda_" id "," argc ")")
                                 ))
                             
                             (cdr exp)))
@@ -94,9 +151,11 @@
 
                        (cond
                         ((eq? (car exp) ysc-apply)
-                         (writer 'write! "apply(context"))
+                         (writer 'write! "apply(context,"))
                         ((eq? (car exp) ysc-apply-tl)
-                         (writer 'write! "apply_tl(context")))
+                         (writer 'write! "apply_tl(context,")))
+
+                       (writer 'write! (length (cdr exp)))
 
                        (let inner-recur ((cur (cdr exp)))
 
@@ -113,7 +172,7 @@
                      (apply (lambda (inline-no . args)
                               (let ((writer (make-plist-writer)))
                                 (writer 'push-level!)
-                                (writer 'write! "__INLINE_" (car (cdr inline-no)) "(context")
+                                (writer 'write! "__INLINE_" (car (cdr inline-no)) "(context," (length args))
 
                                 (let inner-recur ((cur args))
 
@@ -129,7 +188,7 @@
                     ((eq? (car exp) ysc-if)
                      (apply (lambda (if-cond if-true if-false)
 
-                              (list "if (is_ture(" (recur if-cond) ")) {"
+                              (list "if (IS_TRUE(" (recur if-cond) ")) {"
                                     (recur if-true) ";} else {" (recur if-false) ";}")
 
                               ) (cdr exp)))
@@ -162,40 +221,15 @@
 
                     ((eq? (car exp) ysc-quote)
                      (apply (lambda (value)
-
                               (letrec ((offset (car offset-stack))
-                                       (cexp
-                                        (cond
-                                         ((number? value)
-                                          (list "__NUMBER(context," value ")"))
-
-                                         ((string? value)
-                                          (list "__STRING(context," (quote-string value) ")"))
-
-                                         ((symbol? value)
-                                          (list "__SYMBOL(context," (quote-string (symbol->string value)) ")"))
-
-                                         ((boolean? value)
-                                          (list "__BOOLEAN_" (if value "TRUE" "FALSE")))
-
-                                         ((pair? value)
-                                          (list "__QUOTE(context," (quote-string (write-to-string value)) ")")
-                                          )
-                                         
-                                         ((eq? value '())
-                                          "__NULL")
-
-                                         (else
-                                          "__NULL")
-                                         ))
                                        (l (vector-ref lambda-constant-vec offset))
                                        )
                                 (if (pair? l)
                                     (vector-set! lambda-constant-vec offset
-                                                 (cons (cons (+ 1 (car (car l))) cexp)
+                                                 (cons (cons (+ 1 (car (car l))) (quote-exp value))
                                                        l))
                                     (vector-set! lambda-constant-vec offset
-                                                 (cons (cons 0 cexp) l)))
+                                                 (cons (cons 0 (quote-exp value)) l)))
                                 (list "constant_" (car (car (vector-ref lambda-constant-vec offset)))))
                               ) (cdr exp)))
                     
@@ -214,9 +248,9 @@
                        (define-result '()))
        (if (> count 0)
            (after-recur (- count 1)
-                        (cons (list "static void lambda_" (+ count lambda-start -1) "(__context_t context);\n")
+                        (cons (list "static void lambda_" (+ count lambda-start -1) "(context_t context);\n")
                               declare-result)
-                        (cons (list "static void lambda_" (+ count lambda-start -1) "(__context_t context) {\n"
+                        (cons (list "static void lambda_" (+ count lambda-start -1) "(context_t context) {\n"
                                     ;; process for constant
                                     (let inner-recur ((clist (vector-ref lambda-constant-vec (+ count -1)))
                                                       (result '())
@@ -238,7 +272,7 @@
                         )
            (serialize-to-string
             (cons (list declare-result define-result
-                        "void " main-name "(__context_t context) { lambda_" lambda-start "(context); }"
+                        "void " main-name "(context_t context) { lambda_" lambda-start "(context); }"
                         ) (c2c-context-dump c2c-context))))))
     ))
 
