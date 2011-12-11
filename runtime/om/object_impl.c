@@ -185,8 +185,17 @@ do_gc(heap_t heap)
 		
 		case OBJECT_TYPE_CONTEXT:
 		{
-			context_t ex = (context_t)now;
-			exqueue_enqueue(&q, ex->lambda);
+			context_t ctx = (context_t)now;
+			exqueue_enqueue(&q, ctx->lambda);
+			exqueue_enqueue(&q, ctx->env);
+
+			/* list operation on context */
+			cur_gc = ctx->relax.next;
+			while (cur_gc != &ctx->relax)
+			{
+				exqueue_enqueue(&q, TO_OBJECT(cur_gc));
+				cur_gc = cur_gc->next;
+			}
 			break;
 		}
 		
@@ -225,30 +234,13 @@ do_gc(heap_t heap)
 	return;
 }
 
-object_t
-heap_object_new(heap_t heap)
+static inline void
+detach(heap_t heap, object_t object)
 {
-	if (heap->count >= heap->threshold)
-	{
-		do_gc(heap);
-		/* Hardcoded rule for recalculation */
-		heap->threshold = (heap->count + GC_PARAM_1) << 1;
-		WARNING("DEBUG: gc object count: %d\n", heap->count);
-	}
-
-	++ heap->count;
-	
-	gc_header_t result = (gc_header_t)RUNTIME_MALLOC(sizeof(gc_header_s) + sizeof(object_s));
-	result->type = OBJECT_TYPE_UNINITIALIZED;
-	result->mark = 0;
-	
-	result->prot_level = 1;
-	result->next = &heap->locked;
-	result->prev = heap->locked.prev;
-	result->prev->next = result;
-	result->next->prev = result;
-	
-	return TO_OBJECT(result);
+	gc_header_t gc = TO_GC(object);
+	/* list operation on heap (maybe) */
+	gc->next->prev = gc->prev;
+	gc->prev->next = gc->next;
 }
 
 void
@@ -256,13 +248,13 @@ heap_protect_from_gc(heap_t heap, object_t object)
 {
 	gc_header_t gc = TO_GC(object);
 	++ gc->prot_level;
+
 	if (gc->prot_level == 1)
 	{
-		gc->prev->next = gc->next;
-		gc->next->prev = gc->prev;
-		
+		/* list operation on heap */
+		detach(heap, object);
 		gc->next = &heap->locked;
-		gc->prev = heap->locked.prev;
+		gc->prev = gc->next->prev;
 		gc->prev->next = gc;
 		gc->next->prev = gc;
 	}
@@ -278,51 +270,105 @@ heap_unprotect(heap_t heap, object_t object)
 
 		if (gc->prot_level == 0)
 		{
-			gc->mark = 0;
-			gc->prev->next = gc->next;
-			gc->next->prev = gc->prev;
-			
-			
+			/* list operation on heap */
+			detach(heap, object);
 			gc->next = &heap->managed;
-			gc->prev = heap->managed.prev;
+			gc->prev = gc->next->prev;
 			gc->prev->next = gc;
 			gc->next->prev = gc;
 		}
 	}
 }
 
-void
-heap_detach(object_t object)
-{
-	gc_header_t gc = TO_GC(object);
-	gc->prev->next = gc->next;
-	gc->next->prev = gc->prev;
-}
-
 context_t
 heap_context_new(heap_t heap)
 {
 	gc_header_t gc = (gc_header_t)RUNTIME_MALLOC(sizeof(gc_header_s) + sizeof(context_s));
-	context_t ctx = (context_t)(gc + 1);
+	context_t ctx = (context_t)TO_OBJECT(gc);
 
 	ctx->lambda = NULL;
+	ctx->env = NULL;
 	ctx->heap = heap;
 
+	ctx->relax.prev = ctx->relax.next = &ctx->relax;
+	
+	gc->type = OBJECT_TYPE_CONTEXT;
+	gc->mark = 0;
+
+	/* list operation on heap */
+	gc->next = &heap->locked;
+	gc->prev = gc->next->prev;
+	gc->next->prev = gc;
+	gc->prev->next = gc;
+	
 	return ctx;
 }
 
 void
 heap_context_free(context_t ctx)
 {
-	heap_detach((object_t)ctx);
+	context_relax(ctx);
+	/* list operation on heap */
+	detach(ctx->heap, (object_t)ctx);
+	
 	RUNTIME_FREE(TO_GC(ctx));
 }
 
-void
-heap_object_free(heap_t heap, object_t object)
+object_t
+context_object_new(context_t ctx)
 {
-	heap_unprotect(heap, object);
+	++ ctx->relax_count;
+	
+	gc_header_t result = (gc_header_t)RUNTIME_MALLOC(sizeof(gc_header_s) + sizeof(object_s));
+	result->type = OBJECT_TYPE_UNINITIALIZED;
+	result->mark = 0;
+
+	/* list operation on context */
+	result->prot_level = 0;
+	result->next = &ctx->relax;
+	result->prev = result->next->prev;
+	result->prev->next = result;
+	result->next->prev = result;
+	
+	return TO_OBJECT(result);
 }
+
+void
+context_attach(context_t ctx, object_t object)
+{
+	gc_header_t gc = TO_GC(object);
+	if (gc->prot_level == 0)
+	{
+		/* list operation on heap */
+		detach(ctx->heap, object);
+		
+		/* list operation on context */
+		gc->next = &ctx->relax;
+		gc->prev = gc->next->prev;
+		gc->next->prev = gc;
+		gc->prev->next = gc;
+	}
+}
+
+void
+context_relax(context_t ctx)
+{
+	if (ctx->relax.next == &ctx->relax) return;
+
+	heap_t heap = ctx->heap;
+	gc_header_t head = ctx->relax.next, tail = ctx->relax.prev;
+
+	/* list operation on heap and context */
+	tail->next = &heap->managed;
+	head->prev = heap->managed.prev;
+
+	tail->next->prev = tail;
+	head->prev->next = head;
+
+	ctx->relax.next = ctx->relax.prev = &ctx->relax;
+	ctx->relax_count = 0;
+}
+
 
 static void dummy_enumerate(object_t object, void *list, void(*list_add)(void *, object_t)) { } 
 static void dummy_free(object_t object) { }

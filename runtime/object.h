@@ -132,12 +132,6 @@ struct object_s
 	};
 };
 
-struct context_s
-{
-	object_t lambda;
-	heap_t   heap;
-};
-
 #define INT_UNBOX(object)      ((runtime_int_t)(object) >> 2)
 #define INT_BOX(i)             ((object_t)(((runtime_uint_t)(i) << 2) | ENCODE_SUFFIX_INT))
 
@@ -154,16 +148,17 @@ struct context_s
 
 heap_t   heap_new(void);
 void     heap_free(heap_t heap);
-object_t heap_object_new(heap_t heap);
-void     heap_object_free(heap_t heap, object_t object);
 
-/* When create a reference to the object, the object should be protect from the GC collection  */
+/* When create a external reference to the object, the object should
+ * be protect from the GC collection  */
 void heap_protect_from_gc(heap_t heap, object_t object);
 void heap_unprotect(heap_t heap, object_t object);
 
-void heap_detach(object_t object);
-
 context_t heap_context_new(heap_t heap);
-void      heap_context_free(context_t ex);
+void      heap_context_free(context_t ctx);
+
+object_t context_object_new(context_t ctx);
+void     context_attach(context_t ctx, object_t object);
+void     context_relax(context_t ctx);
 
 #endif

@@ -41,4 +41,14 @@ struct gc_header_s
 	};
 };
 
+struct context_s
+{
+	gc_header_s relax;
+	unsigned int relax_count;
+	
+	object_t lambda;
+	object_t env;
+	heap_t   heap;
+};
+
 #endif
