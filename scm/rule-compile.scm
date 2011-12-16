@@ -1,6 +1,6 @@
 ;; rule-compile.scm
 ;; 
-;; convert rules(macros) into internal representation
+;; convert rules into internal representation
 
 ;; Internal symbols used
 (define tag-etc      '...)

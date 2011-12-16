@@ -3,6 +3,7 @@
 (load "deque.scm")
 (load "error.scm")
 (load "dplist.scm")
+(load "base.scm")
 (load "envir.scm")
 (load "plist-rw.scm")
 (load "context.scm")
@@ -10,9 +11,8 @@
 (load "rule-compile.scm")
 (load "hygienic-rule.scm")
 (load "system-rules.scm")
-(load "base.scm")
-(load "base-macros.scm")
-(load "inline.scm")
+(load "type.scm")
+(load "system-envir.scm")
 (load "cps.scm")
 (load "c2c.scm")
 
@@ -22,6 +22,19 @@
   (read)
   
   )
+
+(define cps-repl
+  (lambda ()
+    (let recur ((input-data (get-input)))
+      (if (not (eof-object? input-data))
+          (let* ((cps-data (cps-with-system-envir
+                            input-data)))
+            
+            (display "** Compiling --- ") (display input-data) (newline)
+            (display "** CPS --------- ") (display cps-data) (newline)
+            (recur (get-input))))
+      )
+    ))
 
 (define c2c-repl
   (lambda ()

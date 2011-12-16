@@ -86,18 +86,25 @@
        ))
     ))
 
-(define context-lookup-variable
+(define context-lookup-binding
   (lambda (context sym)
     (context
      (lambda (mx-mode? envir)
-       (envir-lookup-variable envir sym)))
+       (envir-lookup-binding envir sym)))
     ))
 
-(define context-lookup-macro
+(define context-lookup-ruledef
   (lambda (context sym)
     (context
      (lambda (mx-mode? envir)
-       (envir-lookup-macro envir sym)))
+       (envir-lookup-ruledef envir sym)))
+    ))
+
+(define context-lookup-typedef
+  (lambda (context sym)
+    (context
+     (lambda (mx-mode? envir)
+       (envir-lookup-typedef envir sym)))
     ))
 
 (define (context-lookup context sym)
