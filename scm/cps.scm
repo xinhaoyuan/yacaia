@@ -5,7 +5,6 @@
    (list ysc-begin
          ysc-if
          ysc-lambda
-         ysc-typed-lambda
          ysc-set!
          ysc-apply
          ysc-inline-apply
@@ -34,7 +33,7 @@
       ((ret-put (lambda (level type)
                   (list type ysc-quote (purge-exp context (car exp)))))
        level
-       ;; TODO Get the type of the constance
+       ;; XXX Get the type of the constance
        type-void)
       )
 
@@ -74,7 +73,7 @@
                          
                          (lambda (dlevel dtype)
                            (set! dlevel (+ 1 dlevel))
-                           (list (list ysc-typed-lambda 1 (list dtype))
+                           (list (type-typed-lambda-cps (list dtype))
                                  ysc-lambda
                                  ((ret-put (lambda (level type)
                                              ;; set always return the data in binding
@@ -118,7 +117,7 @@
                 
                 (eval-recur
                  (lambda (level type)
-                   (list (list ysc-typed-lambda (list type-atomic))
+                   (list (type-typed-lambda-cps (list type-atomic))
                          ysc-lambda
                          (cps-eval log context
                                    current-cont
@@ -189,8 +188,7 @@
                        (recur (+ 1 offset) (cdr cur)))))
                
                (list type
-                     ;; one for continuation
-                     ysc-lambda (+ 1 args-count)
+                     ysc-lambda
 
                      (cps-system-rule
                       log
@@ -212,7 +210,8 @@
                       ysc-begin
                       codes-list
                       ))
-               )) level (list ysc-lambda (+ 1 args-count)))
+               ;; one more for continuation
+               )) level (type-lambda-cps (+ 1 args-count)))
            ))))
 
      ((eq? head-symbol ysc-if)
@@ -243,7 +242,7 @@
                      (lambda (cond-level cond-type)
                        (set! cond-level (+ 1 cond-level))
                        ;; if always accept cond as atomic
-                       (list (list ysc-typed-lambda (list type-atomic))
+                       (list (type-typed-lambda-cps (list type-atomic))
                              ysc-lambda
                              (list ysc-if (list type-atomic ysc-get (make-binding-meta-data cond-level 0 type-atomic))
                                    (cps-eval log context inner-cont cond-level inner-ret-put if-true)
@@ -259,7 +258,8 @@
                     )
              (list type-void
                    ysc-apply
-                   (list (list ysc-typed-lambda (list cont-type))
+                   (list (type-typed-lambda-cps (list cont-type))
+                         ysc-lambda
                          (cps-eval log context cond-cont level cond-ret-put condition))
                    cont)))
          ) exp))
@@ -306,8 +306,8 @@
                                 (set! level (+ 1 level))
                                 (set! args-list (cons (list type
                                                             ysc-get (make-binding-meta level 0 type)) args-list))
-                                (list (list ysc-typed-lambda (list type))
-                                      ysc-typed-lambda (list type)
+                                (list (type-typed-lambda-cps (list type))
+                                      ysc-lambda
                                       (if (eq? head-symbol ysc-inline-apply)
                                           ((ret-put gen-inline-apply-line) level)
                                           (gen-apply-line (+ 1 level))))
@@ -339,8 +339,8 @@
                      (set! level (+ 1 level))
                      (set! args-list (cons (list type
                                                  ysc-get (make-binding-meta level 0 type)) args-list))
-                     (list (list ysc-typed-lambda (list type))
-                           ysc-typed-lambda (list type)
+                     (list (type-typed-lambda-cps (list type))
+                           ysc-lambda
                            (cps-eval log context
                                      current-cont
                                      level
@@ -375,12 +375,12 @@
                       (let* ((cont-saved (cont level type-object))
                              (cont-type (car cont-saved)))
                         
-                        (list (list ysc-typed-lambda (list type))
-                              ysc-typed-lambda (list type)
+                        (list (type-typed-lambda-cps (list type))
+                              ysc-lambda
                               (list type-void
                                     ysc-apply
-                                    (list (list ysc-type-lambda (list cont-type))
-                                          ysc-type-lambda (list cont-type)
+                                    (list (type-type-lambda-cps (list cont-type))
+                                          ysc-lambda
                                           (list ysc-apply
                                                 (list type ysc-get (make-binding-meta level 0 type))
                                                 (list cont-type ysc-get (make-binding-meta (+ 1 level) 0 cont-type))
@@ -396,12 +396,12 @@
                           (set! level (+ 1 level))
                           (list type-void
                                 ysc-apply
-                                (list (list ysc-type-lambda (list cont-type))
-                                            ysc-type-lambda (list cont-type)
-                                            (list ysc-apply
-                                                  (put level type)
-                                                  (list ysc-get (make-binding-meta level 0 cont-type))
-                                                  (list ysc-get (make-binding-meta level 0 cont-type))))
+                                (list (type-type-lambda-cps (list cont-type))
+                                      ysc-lambda
+                                      (list ysc-apply
+                                            (put level type)
+                                            (list ysc-get (make-binding-meta level 0 cont-type))
+                                            (list ysc-get (make-binding-meta level 0 cont-type))))
                                 cont-saved
                                 ))))
                     (car exp))
@@ -457,17 +457,13 @@
                                 
                                 (begin
                                   (result 'push-tail!
-                                          ;; 					  (cons
-                                          ;; 					   envir
                                           (compile-hygienic-rule
                                            context
                                            (lambda (error) (log 'complain-error error))
                                            rule-labels
                                            (car current)
                                            (car (cdr current)))
-                                          ;; 					   )
                                           )
-                                  
                                   (recur (cdr (cdr current))))
                                 )))
                       ))
@@ -602,7 +598,7 @@
                  (make-context #f system-envir)
                  (lambda (level type)
                    (set! level (+ 1 level))
-                   (list (list ysc-typed-lambda (list type))
+                   (list (type-typed-lambda-cps (list type))
                          ysc-lambda
                          (list type-void ysc-exit (list type ysc-get (make-binding-meta-data level 0 type)))))
                  0

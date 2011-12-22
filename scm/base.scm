@@ -4,7 +4,6 @@
 (define ysc-begin        '$begin)
 (define ysc-if           '$if)
 (define ysc-lambda       '$lambda)
-(define ysc-typed-lambda '$typed-lambda)
 (define ysc-get          '$get)
 (define ysc-set!         '$set!)
 (define ysc-apply        '$apply)
